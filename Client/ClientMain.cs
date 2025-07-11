@@ -273,6 +273,58 @@ public class SuspectStatus
     }
 }
 
+public enum InteractionType
+{
+    RoutineTrafficStop,
+    FelonyStop,
+    VehicleInspection,
+    PursuitIntervention,
+    TrafficCheckpoint,
+    SuspiciousVehicle
+}
+
+public enum ComplianceLevel
+{
+    FullCompliance,      // Immediately pulls over properly
+    DelayedCompliance,   // Takes time to find good spot
+    ReluctantCompliance, // Pulls over slowly/hesitantly
+    PartialResistance,   // Tries minor evasion first
+    ActiveEvasion       // Flees immediately
+}
+
+public enum StopType
+{
+    Standard,
+    HighRisk,
+    Felony
+}
+
+public class VehicleInteractionData
+{
+    public InteractionType InteractionType { get; set; }
+    public ComplianceLevel ComplianceLevel { get; set; }
+    public StopType StopType { get; set; }
+    public bool HasWarrants { get; set; }
+    public bool IsArmed { get; set; }
+    public float ComplianceDelay { get; set; }
+    public int EvasionSkill { get; set; } // 1-10 scale
+    public DateTime InteractionStartTime { get; set; }
+    public bool HasPulledOver { get; set; }
+
+    public VehicleInteractionData()
+    {
+        InteractionType = InteractionType.RoutineTrafficStop;
+        ComplianceLevel = ComplianceLevel.FullCompliance;
+        StopType = StopType.Standard;
+        HasWarrants = false;
+        IsArmed = false;
+        ComplianceDelay = 0f;
+        EvasionSkill = 1;
+        InteractionStartTime = DateTime.Now;
+        HasPulledOver = false;
+    }
+}
+
 
 namespace POLSIM.Client
 {
@@ -282,6 +334,7 @@ namespace POLSIM.Client
         private static List<ServerSettings> _serverSettings;
         //private static Dictionary<int, bool> npcArmedStatus = new Dictionary<int, bool>();
         private static Dictionary<int, SuspectStatus> npcStatus = new Dictionary<int, SuspectStatus>();
+        private static Dictionary<Vehicle, VehicleInteractionData> vehicleInteractions = new Dictionary<Vehicle, VehicleInteractionData>();
 
         //private int selectedOption = 0;
         private string[] options = { "Detain", "Ask for ID", "Search", "Handcuff>", "Drag", "Follow Me", "Put In>", "Remove From Vehicle", "Arrest"  };
@@ -4083,7 +4136,7 @@ namespace POLSIM.Client
                 Vector3 driverPos = driver.Position;
                 float distance = World.GetDistance(playerPos, driverPos);
 
-                if (distance <= 2.0f && Game.IsControlPressed(0, Control.ReplayStartStopRecording))
+                if (distance <= 2.0f && Game.IsControlPressed(0, Control.Context))
                 {
                     ShowTrafficStopMenuCommand();
                     await Delay(50);
@@ -4572,18 +4625,12 @@ namespace POLSIM.Client
 
                 float currVehSpeed = GetEntitySpeed(vehicle.Handle);
 
-                // Tell the NPC driver to pull over
-                TaskVehicleMissionPedTarget(vehicle.Driver.Handle, vehicle.Handle, playerPedHandle, 22, 1f, (int)DrivingStyle.Normal, 1f, 0f, false);
-
-                // Wait for the driver to finish pulling over
-                while (GetScriptTaskStatus(vehicle.Driver.Handle, 0xB41F1A34) != 7)
-                {
-                    await Delay(1);
-                }
+                // Tell the NPC driver to pull over to a safe location
+                await ExecuteSafePullOver(vehicle);
 
                 DisplayNotification("The driver has come to a stop. Press the horn to make the driver pick another parking position.", 4);
                 isDriverStoppedAtTrafficStop = true;
-                DisplayNotification("Approach the vehicle and press F1 to interact with the occupant(s).", 5);
+                DisplayNotification("Approach the vehicle and press E to interact with the occupant(s).", 5);
 
                 await Delay(5000);
 
@@ -4698,6 +4745,357 @@ namespace POLSIM.Client
         }
 
         // =================================================================================
+        // Enhanced Vehicle Interaction System
+        // =================================================================================
+        
+        private VehicleInteractionData DetermineInteractionType(Vehicle vehicle)
+        {
+            var interactionData = new VehicleInteractionData();
+            
+            // Determine interaction type based on various factors
+            var rand = new Random();
+            int interactionRoll = rand.Next(100);
+            
+            if (interactionRoll < 5) // 5% chance for felony stop
+            {
+                interactionData.InteractionType = InteractionType.FelonyStop;
+                interactionData.StopType = StopType.Felony;
+                interactionData.HasWarrants = true;
+                interactionData.IsArmed = rand.Next(100) < 40; // 40% chance armed for felony stops
+            }
+            else if (interactionRoll < 15) // 10% chance for suspicious vehicle
+            {
+                interactionData.InteractionType = InteractionType.SuspiciousVehicle;
+                interactionData.StopType = StopType.HighRisk;
+                interactionData.HasWarrants = rand.Next(100) < 20; // 20% chance of warrants
+            }
+            else if (interactionRoll < 25) // 10% chance for vehicle inspection
+            {
+                interactionData.InteractionType = InteractionType.VehicleInspection;
+                interactionData.StopType = StopType.Standard;
+            }
+            else // 75% routine traffic stop
+            {
+                interactionData.InteractionType = InteractionType.RoutineTrafficStop;
+                interactionData.StopType = StopType.Standard;
+            }
+            
+            // Determine compliance level
+            DetermineComplianceLevel(interactionData, rand);
+            
+            return interactionData;
+        }
+        
+        private void DetermineComplianceLevel(VehicleInteractionData interactionData, Random rand)
+        {
+            int complianceRoll = rand.Next(100);
+            
+            // Adjust compliance based on interaction type and warrants
+            int warrantModifier = interactionData.HasWarrants ? 30 : 0;
+            int felonyModifier = interactionData.StopType == StopType.Felony ? 20 : 0;
+            
+            complianceRoll += warrantModifier + felonyModifier;
+            
+            if (complianceRoll < 20) // 20% base chance for full compliance
+            {
+                interactionData.ComplianceLevel = ComplianceLevel.FullCompliance;
+                interactionData.ComplianceDelay = rand.Next(1000, 3000); // 1-3 seconds
+            }
+            else if (complianceRoll < 40) // 20% delayed compliance
+            {
+                interactionData.ComplianceLevel = ComplianceLevel.DelayedCompliance;
+                interactionData.ComplianceDelay = rand.Next(3000, 8000); // 3-8 seconds
+            }
+            else if (complianceRoll < 60) // 20% reluctant compliance
+            {
+                interactionData.ComplianceLevel = ComplianceLevel.ReluctantCompliance;
+                interactionData.ComplianceDelay = rand.Next(5000, 12000); // 5-12 seconds
+            }
+            else if (complianceRoll < 80) // 20% partial resistance
+            {
+                interactionData.ComplianceLevel = ComplianceLevel.PartialResistance;
+                interactionData.ComplianceDelay = rand.Next(2000, 5000); // Brief evasion attempt
+                interactionData.EvasionSkill = rand.Next(1, 4); // Low evasion skill
+            }
+            else // 20%+ active evasion (increased by modifiers)
+            {
+                interactionData.ComplianceLevel = ComplianceLevel.ActiveEvasion;
+                interactionData.EvasionSkill = rand.Next(3, 8); // Higher evasion skill
+            }
+        }
+        
+        private async Task<bool> ExecuteEnhancedPullOver(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            Debug.WriteLine($"Executing {interactionData.InteractionType} with {interactionData.ComplianceLevel} compliance");
+            
+            switch (interactionData.ComplianceLevel)
+            {
+                case ComplianceLevel.FullCompliance:
+                    return await ExecuteFullCompliance(vehicle, interactionData);
+                    
+                case ComplianceLevel.DelayedCompliance:
+                    return await ExecuteDelayedCompliance(vehicle, interactionData);
+                    
+                case ComplianceLevel.ReluctantCompliance:
+                    return await ExecuteReluctantCompliance(vehicle, interactionData);
+                    
+                case ComplianceLevel.PartialResistance:
+                    return await ExecutePartialResistance(vehicle, interactionData);
+                    
+                case ComplianceLevel.ActiveEvasion:
+                    return await ExecuteActiveEvasion(vehicle, interactionData);
+                    
+                default:
+                    return await ExecuteFullCompliance(vehicle, interactionData);
+            }
+        }
+        
+        private async Task<bool> ExecuteFullCompliance(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            DisplayNotification("Driver is complying immediately.", 3);
+            await Delay((int)interactionData.ComplianceDelay);
+            
+            // Find a safe pull-over location and guide driver there
+            await ExecuteSafePullOver(vehicle);
+            
+            return true; // Successfully pulled over
+        }
+        
+        private async Task<bool> ExecuteDelayedCompliance(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            DisplayNotification("Driver is looking for a safe place to pull over...", 4);
+            
+            // Driver continues for a bit before pulling over
+            await Delay((int)interactionData.ComplianceDelay);
+            
+            await ExecuteSafePullOver(vehicle);
+            
+            return true;
+        }
+        
+        private async Task<bool> ExecuteReluctantCompliance(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            DisplayNotification("Driver appears hesitant but is slowing down...", 4);
+            
+            // Slow down gradually
+            vehicle.Driver.DrivingStyle = DrivingStyle.Normal;
+            SetDriveTaskMaxCruiseSpeed(vehicle.Driver.Handle, 15f); // Very slow
+            
+            await Delay((int)interactionData.ComplianceDelay);
+            
+            await ExecuteSafePullOver(vehicle);
+            
+            return true;
+        }
+        
+        private async Task<bool> ExecutePartialResistance(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            DisplayNotification("Driver is attempting minor evasion...", 3);
+            
+            // Brief evasion attempt
+            vehicle.Driver.DrivingStyle = DrivingStyle.Rushed;
+            int playerPedHandle = Game.PlayerPed.Handle;
+            TaskVehicleMissionPedTarget(vehicle.Driver.Handle, vehicle.Handle, playerPedHandle, 8, 25f, (int)DrivingStyle.Rushed, 10f, 0f, false);
+            
+            await Delay((int)interactionData.ComplianceDelay);
+            
+            // Random chance they give up
+            var rand = new Random();
+            if (rand.Next(100) < 70) // 70% chance they give up
+            {
+                DisplayNotification("Driver has given up and is pulling over.", 3);
+                await ExecuteSafePullOver(vehicle);
+                return true;
+            }
+            else
+            {
+                DisplayNotification("Driver is continuing to flee!", 3);
+                return false; // Continue to full pursuit
+            }
+        }
+        
+        private async Task<bool> ExecuteActiveEvasion(Vehicle vehicle, VehicleInteractionData interactionData)
+        {
+            DisplayNotification("Driver is fleeing!", 3);
+            
+            // Immediate evasion
+            vehicle.Driver.DrivingStyle = DrivingStyle.Rushed;
+            int playerPedHandle = Game.PlayerPed.Handle;
+            
+            // More aggressive evasion based on skill level
+            float evasionSpeed = 30f + (interactionData.EvasionSkill * 5f);
+            TaskVehicleMissionPedTarget(vehicle.Driver.Handle, vehicle.Handle, playerPedHandle, 8, evasionSpeed, (int)DrivingStyle.Rushed, 50f, 0f, true);
+            
+            await Delay(0); // Add await to fix warning
+            return false; // Full pursuit required
+        }
+        
+        private string GetInteractionMessage(VehicleInteractionData interactionData)
+        {
+            string baseMessage;
+            
+            switch (interactionData.InteractionType)
+            {
+                case InteractionType.RoutineTrafficStop:
+                    baseMessage = "Initiating routine traffic stop";
+                    break;
+                case InteractionType.FelonyStop:
+                    baseMessage = "FELONY STOP - High risk vehicle";
+                    break;
+                case InteractionType.VehicleInspection:
+                    baseMessage = "Vehicle inspection required";
+                    break;
+                case InteractionType.SuspiciousVehicle:
+                    baseMessage = "Suspicious vehicle detected";
+                    break;
+                case InteractionType.TrafficCheckpoint:
+                    baseMessage = "Traffic checkpoint stop";
+                    break;
+                case InteractionType.PursuitIntervention:
+                    baseMessage = "Pursuit intervention";
+                    break;
+                default:
+                    baseMessage = "Traffic stop initiated";
+                    break;
+            }
+            
+            if (interactionData.HasWarrants)
+            {
+                baseMessage += " - WARRANTS DETECTED";
+            }
+            
+            return baseMessage;
+        }
+        
+        private async Task ExecuteSafePullOver(Vehicle vehicle)
+        {
+            int playerPedHandle = Game.PlayerPed.Handle;
+            Vector3 vehiclePos = vehicle.Position;
+            Vector3 saferPosition = FindSafePullOverLocation(vehiclePos, vehicle.Heading);
+            
+            // If we found a better position, guide the vehicle there
+            if (saferPosition != Vector3.Zero)
+            {
+                // Use TaskVehicleMissionPedTarget with the safe position as target
+                TaskVehicleMissionPedTarget(vehicle.Driver.Handle, vehicle.Handle, playerPedHandle, 22, 15f, (int)DrivingStyle.Normal, 3f, 0f, false);
+                
+                // Wait for the vehicle to reach the safe location
+                while (GetScriptTaskStatus(vehicle.Driver.Handle, 0xB41F1A34) != 7)
+                {
+                    await Delay(100);
+                    // Add timeout to prevent infinite loops
+                    float distanceToTarget = World.GetDistance(vehicle.Position, saferPosition);
+                    if (distanceToTarget < 5f) break;
+                }
+            }
+            else
+            {
+                // Fallback to standard pull-over if no safe spot found
+                TaskVehicleMissionPedTarget(vehicle.Driver.Handle, vehicle.Handle, playerPedHandle, 22, 1f, (int)DrivingStyle.Normal, 1f, 0f, false);
+                
+                while (GetScriptTaskStatus(vehicle.Driver.Handle, 0xB41F1A34) != 7)
+                {
+                    await Delay(100);
+                }
+            }
+        }
+        
+        private Vector3 FindSafePullOverLocation(Vector3 vehiclePosition, float vehicleHeading)
+        {
+            // Look for safe spots to the right of the vehicle (curb side)
+            Vector3 rightSide = GetRightVector(vehicleHeading);
+            
+            // Check multiple distances to the right
+            for (int distance = 8; distance <= 20; distance += 4)
+            {
+                Vector3 candidatePos = vehiclePosition + (rightSide * distance);
+                
+                // Check if this position is safe (not blocking traffic, away from intersections)
+                if (IsSafePullOverSpot(candidatePos))
+                {
+                    return candidatePos;
+                }
+            }
+            
+            // If no safe spot to the right, try left side as last resort
+            Vector3 leftSide = rightSide * -1;
+            for (int distance = 8; distance <= 20; distance += 4)
+            {
+                Vector3 candidatePos = vehiclePosition + (leftSide * distance);
+                
+                if (IsSafePullOverSpot(candidatePos))
+                {
+                    return candidatePos;
+                }
+            }
+            
+            return Vector3.Zero; // No safe spot found
+        }
+        
+        private Vector3 GetRightVector(float heading)
+        {
+            float radians = (heading + 90f) * (float)(Math.PI / 180f);
+            return new Vector3((float)Math.Cos(radians), (float)Math.Sin(radians), 0f);
+        }
+        
+        private bool IsSafePullOverSpot(Vector3 position)
+        {
+            // Check if the position is on a road
+            int roadHandle = 0;
+            if (!IsPointOnRoad(position.X, position.Y, position.Z, roadHandle))
+            {
+                return false;
+            }
+            
+            // Check if there are no vehicles too close
+            Vehicle[] allVehicles = World.GetAllVehicles();
+            int nearbyCount = 0;
+            foreach (Vehicle veh in allVehicles)
+            {
+                if (World.GetDistance(position, veh.Position) < 10f)
+                {
+                    nearbyCount++;
+                }
+            }
+            if (nearbyCount > 2) // Allow some traffic but not too crowded
+            {
+                return false;
+            }
+            
+            // Check if it's not too close to an intersection
+            if (IsNearIntersection(position))
+            {
+                return false;
+            }
+            
+            return true;
+        }
+        
+        private bool IsNearIntersection(Vector3 position)
+        {
+            // Simple check - look for roads in multiple directions
+            int roadCount = 0;
+            Vector3[] directions = {
+                new Vector3(1, 0, 0),   // East
+                new Vector3(-1, 0, 0),  // West  
+                new Vector3(0, 1, 0),   // North
+                new Vector3(0, -1, 0)   // South
+            };
+            
+            foreach (Vector3 dir in directions)
+            {
+                Vector3 checkPos = position + (dir * 15f);
+                int roadHandle = 0;
+                if (IsPointOnRoad(checkPos.X, checkPos.Y, checkPos.Z, roadHandle))
+                {
+                    roadCount++;
+                }
+            }
+            
+            return roadCount >= 3; // Likely an intersection if roads in 3+ directions
+        }
+
+        // =================================================================================
         // StartPursuit()
         // Changes NPC behavior so they start evading the player
         // =================================================================================
@@ -4805,19 +5203,36 @@ namespace POLSIM.Client
             }
 
 
-            Random random = new Random();
-            int randomNumber = random.Next(100);
-            int pursuitChancePercentage = (int)(pursuitChance * 100);
-            bool isEvading = randomNumber <= pursuitChancePercentage;
-
-            if (isEvading)
+            // Use enhanced interaction system
+            VehicleInteractionData interactionData;
+            
+            // Check if we already have interaction data for this vehicle
+            if (!vehicleInteractions.ContainsKey(targetVehicle))
             {
-                DisplayNotification("The driver is fleeing.", 5);
+                interactionData = DetermineInteractionType(targetVehicle);
+                vehicleInteractions[targetVehicle] = interactionData;
+                
+                // Display interaction type to player
+                string interactionMessage = GetInteractionMessage(interactionData);
+                DisplayNotification(interactionMessage, 4);
+            }
+            else
+            {
+                interactionData = vehicleInteractions[targetVehicle];
+            }
+            
+            // Execute the enhanced pull-over logic
+            bool pulledOverSuccessfully = await ExecuteEnhancedPullOver(targetVehicle, interactionData);
+            
+            if (!pulledOverSuccessfully)
+            {
+                // Vehicle is evading - start pursuit
                 blip?.Delete();
                 await StartPursuit(targetVehicle);
             }
             else
             {
+                // Vehicle complied - proceed with standard traffic stop
                 await TrafficStopPullOverLogic(targetVehicle);
             }
             await Delay(0);

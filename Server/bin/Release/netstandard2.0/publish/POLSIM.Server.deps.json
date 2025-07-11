@@ -9,7 +9,7 @@
     ".NETStandard,Version=v2.0/": {
       "POLSIM.Server/1.0.0": {
         "dependencies": {
-          "CitizenFX.Core.Server": "1.0.8292",
+          "CitizenFX.Core.Server": "1.0.10230",
           "Microsoft.CSharp": "4.7.0",
           "NETStandard.Library": "2.0.3",
           "Newtonsoft.Json": "13.0.3"
@@ -18,7 +18,7 @@
           "POLSIM.Server.dll": {}
         }
       },
-      "CitizenFX.Core.Server/1.0.8292": {
+      "CitizenFX.Core.Server/1.0.10230": {
         "runtime": {
           "lib/netstandard20/CitizenFX.Core.Server.dll": {
             "assemblyVersion": "0.0.0.0",
@@ -56,12 +56,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "CitizenFX.Core.Server/1.0.8292": {
+    "CitizenFX.Core.Server/1.0.10230": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-EAuSX3SdsY54WI4pF0qX/r8vi2wcwjXQbjwHC61x2DBGSwX4KfcAI1BlL14gaBm5WD43Jcmck9Ioq9qmix9eFA==",
-      "path": "citizenfx.core.server/1.0.8292",
-      "hashPath": "citizenfx.core.server.1.0.8292.nupkg.sha512"
+      "sha512": "sha512-B92x/0kdRQkTzMzxPToDlNdY3zvVCWESfvja9bwi6xILccVVuQejWzBP4hKaMAgJ2AFFPo2AVuibs09c4Zto4g==",
+      "path": "citizenfx.core.server/1.0.10230",
+      "hashPath": "citizenfx.core.server.1.0.10230.nupkg.sha512"
     },
     "Microsoft.CSharp/4.7.0": {
       "type": "package",

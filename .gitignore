@@ -1,0 +1,60 @@
+# Build outputs
+/dist
+bin/
+obj/
+publish/
+
+# .NET build artifacts
+*.dll
+*.pdb
+*.exe
+*.deps.json
+
+# MSBuild generated files
+*.AssemblyInfo.cs
+*.AssemblyInfoInputs.cache
+*.GeneratedMSBuildEditorConfig.editorconfig
+*.assets.cache
+*.csproj.AssemblyReference.cache
+*.csproj.CoreCompileInputs.cache
+*.csproj.FileListAbsolute.txt
+*.sourcelink.json
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.cache
+project.assets.json
+project.nuget.cache
+PublishOutputs.*.txt
+*.Up2Date
+
+# Visual Studio / .NET
+*.user
+*.suo
+*.cache
+.vs/
+packages/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+*.swp
+*.swo
+
+# FiveM specific
+cache.xml
+/Client/bin

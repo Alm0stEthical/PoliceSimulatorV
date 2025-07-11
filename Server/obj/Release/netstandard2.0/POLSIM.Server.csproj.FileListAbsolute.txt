@@ -8,3 +8,14 @@ C:\FXDev\POLSIM\Server\obj\Release\netstandard2.0\POLSIM.Server.AssemblyInfo.cs
 C:\FXDev\POLSIM\Server\obj\Release\netstandard2.0\POLSIM.Server.csproj.CoreCompileInputs.cache
 C:\FXDev\POLSIM\Server\obj\Release\netstandard2.0\POLSIM.Server.net.dll
 C:\FXDev\POLSIM\Server\obj\Release\netstandard2.0\POLSIM.Server.net.pdb
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\bin\Release\netstandard2.0\POLSIM.Server.deps.json
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\bin\Release\netstandard2.0\POLSIM.Server.net.dll
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\bin\Release\netstandard2.0\POLSIM.Server.net.pdb
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.csproj.AssemblyReference.cache
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.AssemblyInfoInputs.cache
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.AssemblyInfo.cs
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.csproj.CoreCompileInputs.cache
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.sourcelink.json
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.net.dll
+C:\Users\David\Documents\GitHub\PoliceSimulatorV\Server\obj\Release\netstandard2.0\POLSIM.Server.net.pdb
